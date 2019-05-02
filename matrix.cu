@@ -3,6 +3,11 @@
 #include <memory>
 #include "error_handling.hpp"
 
+/*
+ * A Matrix class which can have the same matrix on both the CPU and GPU.
+ * The functions like cudaMemcpy(in either direction), cudaMalloc, cudaFree
+ * have been abstracted away in this class for convenience.
+ */
 class Matrix
 {
  public:

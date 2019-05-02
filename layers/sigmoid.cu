@@ -1,49 +1,40 @@
 #pragma once
 #include "layer.hpp"
 
-__global__ void ForwardReLU(float* Z, int nRowsZ, int nColsZ, float* A)
+__global__ void ForwardSigmoid(float* Z, int nRowsZ, int nColsZ, float* A)
 {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (index < nRowsZ * nColsZ)
   {
-    if (Z[index] >= 0)
-      A[index] = Z[index];
-    else
-      A[index] = 0;
+    A[index] = 1 / (1 + exp(-Z[index]));
   }
 }
 
-__global__ void BackwardReLU(float* Z, float* dA, int nRowsdZ, int nColsdZ,
+__global__ void BackwardSigmoid(float* Z, float* dA, int nRowsdZ, int nColsdZ,
     float *dZ)
 {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (index < nRowsdZ * nColsdZ)
   {
-    if (Z[index] >= 0)
-      dZ[index] = dA[index];
-    else
-      dZ[index] = 0;
+    dZ[index] = 1 / (1 + exp(-Z[index])) * (1 - 1 / (1 + exp(-Z[index]))) *
+        dA[index];
   }
 }
 
-class ReLU : public Layer
+class Sigmoid : public Layer
 {
  public:
-  ReLU()
+  Sigmoid()
   {
     dimBlock = 64;
-  }
-
-  ~ReLU()
-  {
-    /* Nothing to do here */
   }
 
   Matrix& Forward(Matrix& Z)
   {
     this->Z = Z;
+    // Z.CopyDeviceToHost();
 
     A.AllocateMemory(Z.nRows, Z.nCols);
 
@@ -53,10 +44,10 @@ class ReLU : public Layer
     else
       dimGrid = (Z.nRows * Z.nCols) / dimBlock + 1;
 
-    ForwardReLU<<<dimGrid, dimBlock>>>(Z.deviceMat.get(), Z.nRows, Z.nCols,
+    ForwardSigmoid<<<dimGrid, dimBlock>>>(Z.deviceMat.get(), Z.nRows, Z.nCols,
         A.deviceMat.get());
     CheckErrors(cudaGetLastError(),
-        "ReLU:: Kernel invocation: ForwardReLU");
+        "Sigmoid:: Kernel invocation: ForwardSigmoid");
 
     // Comment the below line if it's not needed on the host.
     // A.CopyDeviceToHost();
@@ -74,10 +65,10 @@ class ReLU : public Layer
     else
       dimGrid = (dZ.nRows * dZ.nCols) / dimBlock + 1;
 
-    BackwardReLU<<<dimGrid, dimBlock>>>(Z.deviceMat.get(), dA.deviceMat.get(),
+    BackwardSigmoid<<<dimGrid, dimBlock>>>(Z.deviceMat.get(), dA.deviceMat.get(),
         dZ.nRows, dZ.nCols, dZ.deviceMat.get());
     CheckErrors(cudaGetLastError(),
-        "ReLU:: Kernel invocation: BackwardReLU");
+        "Sigmoid:: Kernel invocation: BackwardSigmoid");
 
     // Comment the below line if it's not needed on the host.
     // dZ.CopyDeviceToHost();
@@ -99,29 +90,25 @@ class ReLU : public Layer
     {
       for (int j = 0; j < A.nCols; j++)
       {
-        if (Z(i, j) >= 0)
-          A(i, j) = Z(i, j);
-        else
-          A(i, j) = 0;
+        A(i, j) = 1 / (1 + exp(-Z(i, j)));
       }
     }
 
-    // A.CopyHostToDevice();
+    A.CopyHostToDevice();
     return A;
   }
 
   Matrix& BackwardCPU(Matrix& dA, float lr)
   {
+    dA.CopyDeviceToHost();
     dZ.AllocateMemory(Z.nRows, Z.nCols);
 
     for (int i = 0; i < A.nRows; i++)
     {
       for (int j = 0; j < A.nCols; j++)
       {
-        if (Z(i, j) >= 0)
-          dZ(i, j) = dA(i, j);
-        else
-          dZ(i, j) = 0;
+        dZ(i, j) = 1 / (1 + exp(-Z(i, j))) * (1 - 1 / (1 + exp(-Z(i, j)))) *
+          dA(i, j);
       }
     }
 
@@ -139,4 +126,3 @@ class ReLU : public Layer
 
   int dimBlock;
 };
-

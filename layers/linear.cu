@@ -189,8 +189,93 @@ class Linear : public Layer
     // b.CopyDeviceToHost();
   }
 
-  Matrix Weights() const {return W;}
-  Matrix Bias() const {return b;}
+  /*
+   * CPU implementations of functions for time study.
+   */
+
+  Matrix& ForwardCPU(Matrix& A)
+  {
+    if (A.nRows != W.nCols)
+    {
+        std::cerr << "ERROR: Number of rows in the input matrix should be " <<
+            "equal to the number of columns of the weight matrix." << std::endl;
+    }
+
+    // A.CopyDeviceToHost();
+    this->A = A;
+
+    Z.AllocateMemory(W.nRows, A.nCols);
+
+    for (int i = 0; i < Z.nRows; i++)
+    {
+      for (int j = 0; j < Z.nCols; j++)
+      {
+        Z(i, j) = 0;
+        for (int k = 0; k < A.nRows; k++)
+        {
+          Z(i, j) += W(i, k) * A(k, j);
+        }
+
+        Z(i, j) += b[i];
+      }
+    }
+
+    // Z.CopyHostToDevice();
+
+    return Z;
+  }
+
+  Matrix& BackwardCPU(Matrix& dZ, float lr = 0.01)
+  {
+    // dZ.CopyDeviceToHost();
+
+    dA.AllocateMemory(A.nRows, A.nCols);
+
+    for (int i = 0; i < A.nRows; i++)
+    {
+      for (int j = 0; j < A.nCols; j++)
+      {
+        dA(i, j) = 0;
+        for (int k = 0; k < W.nRows; k++)
+        {
+          dA(i, j) += W(k, i) * dZ(k, j);
+        }
+      }
+    }
+
+    UpdateParametersCPU(dZ, lr);
+
+    // dA.CopyHostToDevice();
+    return dA;
+  }
+
+  void UpdateParametersCPU(Matrix& dZ, float lr)
+  {
+    float dWValue;
+    for (int i = 0; i < W.nRows; i++)
+    {
+      for (int j = 0; j < W.nCols; j++)
+      {
+        dWValue = 0;
+        for (int k = 0; k < dZ.nCols; k++)
+        {
+          dWValue += dZ(i, k) * A(j, k);
+        }
+        W(i, j) -= lr * dWValue / dZ.nCols;
+      }
+    }
+
+    float dbValue;
+    for (int i = 0; i < dZ.nRows; i++)
+    {
+      dbValue = 0;
+      for (int j = 0; j < dZ.nCols; j++)
+      {
+        dbValue += dZ(i, j);
+      }
+      b[i] -= lr * dbValue / dZ.nCols;
+    }
+  }
 
  private:
   // Parameters.

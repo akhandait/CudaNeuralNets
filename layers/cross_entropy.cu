@@ -6,19 +6,18 @@ __global__ void ForwardCrossEntropy(float *output, float *labels,
 {
   int col = blockIdx.x;
 
-  atomicAdd(loss, -logf(output[(int)labels[col] * nColsOutput + col]));
+  float temp = -(labels[col] * logf(output[col]) + logf(1 - output[col])
+      * (1 - labels[col]));
+  atomicAdd(loss, temp);
 }
 
 __global__ void BackwardCrossEntropy(float *output, float *labels,
     int nColsOutput, float *dOutput)
 {
-  int row = threadIdx.x;
   int col = blockIdx.x;
 
-  if (row == labels[col])
-    dOutput[row * nColsOutput + col] = -1 / (output[row * nColsOutput + col]);
-  else
-    dOutput[row * nColsOutput + col] = 0.0;
+  dOutput[col] = (labels[col] / output[col] - (1 - labels[col]) /
+      (1 - output[col])) * -1;
 }
 
 class CrossEntropy
@@ -75,7 +74,7 @@ class CrossEntropy
     BackwardCrossEntropy<<<output.nCols, output.nRows>>>(output.deviceMat.get(),
         labels.deviceMat.get(), output.nCols, dOutput.deviceMat.get());
     CheckErrors(cudaGetLastError(),
-        "CrossEntropy:: Kernel invocation: BackwardCrossEntropy");dOutput.CopyDeviceToHost();
+        "CrossEntropy:: Kernel invocation: BackwardCrossEntropy");
 
     return dOutput;
   }

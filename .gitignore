@@ -1,2 +1,4 @@
-mnist10k.csv
-mnist_full.csv
+test
+train
+test.cu
+callgrind*
