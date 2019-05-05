@@ -9,7 +9,7 @@
 int main()
 {
   int nBatches = 200;
-  int batchSize = 4096;
+  int batchSize = 2048;
   Dataset dataset(batchSize, batchSize * nBatches);
 
   FFN network;
@@ -17,7 +17,6 @@ int main()
   network.Add(new ReLU());
   network.Add(new Linear(20, 1));
   network.Add(new Sigmoid());
-
   network.Train(dataset /* dataset class */,
                 0.1 /* learning rate */,
                 10 /* epochs */,
